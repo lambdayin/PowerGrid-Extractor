@@ -1,0 +1,37 @@
+# Default configuration for power transmission objects extraction
+# Based on Zhang et al., Remote Sensing 2019
+
+# Core grid and voxel parameters (from paper)
+grid_2d_size: 5.0          # 2D grid size in meters (5m x 5m)
+voxel_size: 0.5            # 3D voxel size in meters (0.5m³)
+
+# Preprocessing parameters
+sor_k: 20                  # Statistical outlier removal k neighbors
+sor_sigma: 2.0             # SOR standard deviation multiplier
+
+# Height analysis parameters
+min_height_gap: 8.0        # Δh_min: minimum height gap in meters
+tower_head_height: null    # H_h: auto-estimated from height histogram
+
+# Feature calculation parameters
+a1d_linear_thr: 0.6        # Linear dimensionality threshold
+a2d_planar_thr: 0.3        # Planar dimensionality threshold  
+a3d_spherical_thr: 0.1     # Spherical dimensionality threshold
+
+# Power line extraction parameters
+collinearity_angle_thr: 10.0    # Collinearity angle threshold in degrees
+neighbor_mode: "8-connected"    # 2D grid neighborhood mode
+
+# Tower segmentation parameters  
+moving_window_size: 2           # 2x2 moving window for refinement
+tower_grid_cluster_offset: 5.0  # H_h + 5 meters for clustering
+planar_radius_offset: 5.0       # r + 5 for radius constraint
+
+# Topological optimization parameters
+connection_distance_thr: 10.0   # Max distance for PL-tower connections
+parallel_angle_thr: 15.0        # Angle threshold for parallel consistency
+
+# Output parameters
+enable_visualization: false      # Enable Open3D visualization
+save_intermediate: false        # Save intermediate processing results
+log_level: "INFO"               # Logging level: DEBUG, INFO, WARNING, ERROR

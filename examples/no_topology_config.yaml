@@ -1,0 +1,37 @@
+# 禁用拓扑优化的配置 - 直接输出电力线检测结果
+# 基于调试结果的最终配置
+
+# 核心网格参数
+grid_2d_size: 5.0          # 2D网格大小
+voxel_size: 0.5            # 3D体素大小
+
+# 预处理参数
+sor_k: 20                  # SOR邻居数
+sor_sigma: 2.0             # SOR标准差倍数
+
+# 高度分析参数 (已验证有效)
+min_height_gap: 1.0        # 最小高度间隙
+tower_head_height: null    # 自动估算
+
+# 特征计算参数 (已验证有效)
+a1d_linear_thr: 0.3        # 线性阈值
+a2d_planar_thr: 0.4        # 平面阈值
+a3d_spherical_thr: 0.3     # 球形阈值
+
+# 电力线提取参数
+collinearity_angle_thr: 20.0   # 共线性角度
+neighbor_mode: "8-connected"    # 8邻域搜索
+
+# 塔架分割参数 (宽松设置)
+moving_window_size: 2           # 2x2移动窗口
+tower_grid_cluster_offset: 1.0  # 极小的聚类高度偏移
+planar_radius_offset: 15.0      # 极大的半径约束偏移
+
+# 拓扑优化参数 (极度宽松，几乎不过滤)
+connection_distance_thr: 100.0  # 极大的连接距离
+parallel_angle_thr: 90.0        # 90度 - 几乎不限制
+
+# 输出参数
+enable_visualization: true      # 开启可视化
+save_intermediate: false        # 不保存中间结果 (避免LAS格式错误)
+log_level: "INFO"               # 信息级别日志

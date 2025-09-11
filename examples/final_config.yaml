@@ -1,0 +1,37 @@
+# 最终优化配置 - 基于调试结果调整
+# 确保能检测到输电设施
+
+# 核心网格参数 (保持论文设定)
+grid_2d_size: 5.0          # 2D网格大小
+voxel_size: 0.5            # 3D体素大小
+
+# 预处理参数
+sor_k: 20                  # SOR邻居数
+sor_sigma: 2.0             # SOR标准差倍数
+
+# 高度分析参数 (关键调整)
+min_height_gap: 1.0        # 最小高度间隙 (从8.0降低到1.0)
+tower_head_height: null    # 自动估算
+
+# 特征计算参数 (放宽线性检测)
+a1d_linear_thr: 0.3        # 线性阈值 (从0.6降低到0.3)
+a2d_planar_thr: 0.4        # 平面阈值
+a3d_spherical_thr: 0.3     # 球形阈值
+
+# 电力线提取参数
+collinearity_angle_thr: 20.0   # 共线性角度 (从10度增加到20度)
+neighbor_mode: "8-connected"    # 8邻域搜索
+
+# 塔架分割参数
+moving_window_size: 2           # 2x2移动窗口
+tower_grid_cluster_offset: 2.0  # 聚类高度偏移 (从5.0降低到2.0)
+planar_radius_offset: 8.0       # 半径约束偏移 (从5.0增加到8.0)
+
+# 拓扑优化参数
+connection_distance_thr: 20.0   # 连接距离 (从10.0增加到20.0)
+parallel_angle_thr: 25.0        # 平行角度 (从15度增加到25度)
+
+# 输出参数
+enable_visualization: true      # 开启可视化
+save_intermediate: true         # 保存中间结果
+log_level: "INFO"               # 信息级别日志

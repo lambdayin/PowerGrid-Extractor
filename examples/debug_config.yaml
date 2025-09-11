@@ -1,0 +1,37 @@
+# 调试配置 - 针对cloud_merged.las数据优化
+# 基于数据分析结果调整参数
+
+# 核心网格参数
+grid_2d_size: 5.0          # 保持论文设定
+voxel_size: 0.5            # 保持论文设定
+
+# 预处理参数
+sor_k: 20                  # 保持默认
+sor_sigma: 2.0             # 保持默认
+
+# 高度分析参数 (关键调整)
+min_height_gap: 3.0        # 降低到3m (原8m太高)
+tower_head_height: null    # 自动估算
+
+# 特征计算参数 (放宽阈值)
+a1d_linear_thr: 0.4        # 降低线性阈值 (原0.6)
+a2d_planar_thr: 0.4        # 调整平面阈值
+a3d_spherical_thr: 0.2     # 调整球形阈值
+
+# 电力线提取参数
+collinearity_angle_thr: 15.0   # 增加共线性角度容忍度 (原10度)
+neighbor_mode: "8-connected"    # 保持8邻域
+
+# 塔架分割参数
+moving_window_size: 2           # 保持2x2窗口
+tower_grid_cluster_offset: 3.0  # 降低聚类偏移 (原5.0)
+planar_radius_offset: 5.0       # 保持半径约束
+
+# 拓扑优化参数
+connection_distance_thr: 15.0   # 增加连接距离 (原10.0)
+parallel_angle_thr: 20.0        # 增加平行角度容忍度 (原15度)
+
+# 输出参数
+enable_visualization: true      # 开启可视化
+save_intermediate: true         # 保存中间结果
+log_level: "DEBUG"              # 详细日志

@@ -1,0 +1,37 @@
+# 超级调试配置 - 极其宽松的参数设置
+# 用于找出数据中到底有什么结构
+
+# 核心网格参数
+grid_2d_size: 10.0         # 增大网格以减少计算量
+voxel_size: 1.0            # 增大体素以减少计算量
+
+# 预处理参数
+sor_k: 20                  # 保持默认
+sor_sigma: 3.0             # 增大sigma，保留更多点
+
+# 高度分析参数 (极其宽松)
+min_height_gap: 1.0        # 降低到1m，几乎不过滤
+tower_head_height: null    # 自动估算
+
+# 特征计算参数 (极其宽松)
+a1d_linear_thr: 0.2        # 极低的线性阈值
+a2d_planar_thr: 0.5        # 宽松的平面阈值
+a3d_spherical_thr: 0.3     # 宽松的球形阈值
+
+# 电力线提取参数
+collinearity_angle_thr: 30.0   # 极大的共线性角度容忍度
+neighbor_mode: "8-connected"    # 保持8邻域
+
+# 塔架分割参数
+moving_window_size: 2           # 保持2x2窗口
+tower_grid_cluster_offset: 1.0  # 极小的聚类偏移
+planar_radius_offset: 10.0      # 极大的半径约束
+
+# 拓扑优化参数
+connection_distance_thr: 50.0   # 极大的连接距离
+parallel_angle_thr: 45.0        # 极大的平行角度容忍度
+
+# 输出参数
+enable_visualization: true      # 开启可视化
+save_intermediate: true         # 保存中间结果
+log_level: "DEBUG"              # 详细日志
