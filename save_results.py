@@ -15,11 +15,12 @@ def save_detection_results():
     print("=== 电力线检测和结果保存 ===")
     
     # 使用调试配置
-    config = Config("debug_config.yaml")
+    config = Config("./examples/custom_config.yaml")
     segmenter = CorridorSegmenter(config)
     
     # 运行检测
-    input_file = "/Users/lambdayin/Code-Projects/maicro_projects/detection/Spatil-Line-Clustering/data/cloud_merged.las"
+    # input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud_merged.las"
+    input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud4db26d1a9662f7ae_Block_0.las"
     print(f"处理文件: {input_file}")
     
     try:

@@ -90,6 +90,8 @@ dmypy.json
 /output_success/
 /quick_test_output/
 /detection_results/
+/my_debug_results/
+/debug_visualizations/
 
 # Temporary data files
 /temp_sample.las
