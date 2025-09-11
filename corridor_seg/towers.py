@@ -116,7 +116,9 @@ class TowerExtractor:
         return refined_candidates
     
     def step3_vertical_continuity_check(self, refined_candidates: Set, grid_features: Dict,
-                                      points: np.ndarray, tower_head_height: float) -> Set[Tuple[int, int]]:
+                                      points: np.ndarray, tower_head_height: float,
+                                      grid_2d: Optional[Dict] = None,
+                                      grid_origin: Optional[Tuple[float, float]] = None) -> Set[Tuple[int, int]]:
         """
         Step 3: Vertical continuity and height threshold check.
         
@@ -140,26 +142,32 @@ class TowerExtractor:
             
             features = grid_features[grid_idx]
             
-            # Get points in this grid cell
-            # We need to reconstruct point indices from grid (this requires grid_2d from preprocessing)
-            # For now, use a spatial search approach
-            grid_size = self.config.grid_2d_size
-            
-            # Approximate grid bounds
-            grid_i, grid_j = grid_idx
-            x_min = grid_i * grid_size
-            x_max = (grid_i + 1) * grid_size
-            y_min = grid_j * grid_size  
-            y_max = (grid_j + 1) * grid_size
-            
-            # Find points in grid cell
-            mask = ((points[:, 0] >= x_min) & (points[:, 0] < x_max) &
-                   (points[:, 1] >= y_min) & (points[:, 1] < y_max))
-            
-            if not np.any(mask):
-                continue
-            
-            grid_points = points[mask]
+            # Get points in this grid cell using preprocessing grid if available
+            if grid_2d is not None and grid_idx in grid_2d:
+                point_indices = grid_2d[grid_idx]
+                if not point_indices:
+                    continue
+                grid_points = points[point_indices]
+            else:
+                # Fallback: spatial bounds using provided origin (less reliable)
+                grid_size = self.config.grid_2d_size
+                origin_x, origin_y = 0.0, 0.0
+                if grid_origin is not None:
+                    try:
+                        origin_x = float(grid_origin[0])
+                        origin_y = float(grid_origin[1])
+                    except Exception:
+                        pass
+                grid_i, grid_j = grid_idx
+                x_min = origin_x + grid_i * grid_size
+                x_max = origin_x + (grid_i + 1) * grid_size
+                y_min = origin_y + grid_j * grid_size
+                y_max = origin_y + (grid_j + 1) * grid_size
+                mask = ((points[:, 0] >= x_min) & (points[:, 0] < x_max) &
+                       (points[:, 1] >= y_min) & (points[:, 1] < y_max))
+                if not np.any(mask):
+                    continue
+                grid_points = points[mask]
             heights = grid_points[:, 2]
             
             # Check vertical continuity
@@ -286,7 +294,9 @@ class TowerExtractor:
         }
     
     def step5_planar_radius_constraint(self, tower_clusters: List[Dict], 
-                                     points: np.ndarray) -> List[Dict]:
+                                     points: np.ndarray,
+                                     grid_2d: Optional[Dict] = None,
+                                     grid_origin: Optional[Tuple[float, float]] = None) -> List[Dict]:
         """
         Step 5: Apply planar projection radius constraint R(m,n) ≤ r+5.
         
@@ -308,7 +318,7 @@ class TowerExtractor:
             grid_cells = cluster['grid_cells']
             
             # Get all points belonging to this tower cluster
-            cluster_points = self._get_cluster_points(cluster, points, grid_size)
+            cluster_points = self._get_cluster_points(cluster, points, grid_size, grid_2d, grid_origin)
             
             if len(cluster_points) < 10:  # Minimum points for valid tower
                 continue
@@ -342,21 +352,37 @@ class TowerExtractor:
         self.logger.info(f"Step 5: {len(filtered_towers)} towers pass radius constraint")
         return filtered_towers
     
-    def _get_cluster_points(self, cluster: Dict, points: np.ndarray, grid_size: float) -> np.ndarray:
+    def _get_cluster_points(self, cluster: Dict, points: np.ndarray, grid_size: float,
+                            grid_2d: Optional[Dict] = None,
+                            grid_origin: Optional[Tuple[float, float]] = None) -> np.ndarray:
         """Get all points belonging to a tower cluster."""
         cluster_points = []
         
+        if grid_2d is not None:
+            for grid_idx in cluster['grid_cells']:
+                if grid_idx in grid_2d:
+                    indices = grid_2d[grid_idx]
+                    if indices:
+                        cluster_points.extend(points[indices])
+            return np.array(cluster_points) if cluster_points else np.empty((0, 3))
+        
+        # Fallback to spatial bounds using origin
+        origin_x, origin_y = 0.0, 0.0
+        if grid_origin is not None:
+            try:
+                origin_x = float(grid_origin[0])
+                origin_y = float(grid_origin[1])
+            except Exception:
+                pass
+        
         for grid_idx in cluster['grid_cells']:
             grid_i, grid_j = grid_idx
-            x_min = grid_i * grid_size
-            x_max = (grid_i + 1) * grid_size
-            y_min = grid_j * grid_size
-            y_max = (grid_j + 1) * grid_size
-            
-            # Find points in grid cell
+            x_min = origin_x + grid_i * grid_size
+            x_max = origin_x + (grid_i + 1) * grid_size
+            y_min = origin_y + grid_j * grid_size
+            y_max = origin_y + (grid_j + 1) * grid_size
             mask = ((points[:, 0] >= x_min) & (points[:, 0] < x_max) &
                    (points[:, 1] >= y_min) & (points[:, 1] < y_max))
-            
             if np.any(mask):
                 cluster_points.extend(points[mask])
         
@@ -382,7 +408,9 @@ class TowerExtractor:
         return aspect_ratio > 2.0  # At least 2:1 height to width ratio
     
     def extract_tower_candidates(self, grid_features: Dict, points: np.ndarray,
-                               delta_h_min: float, tower_head_height: float) -> Tuple[List[Dict], np.ndarray]:
+                               delta_h_min: float, tower_head_height: float,
+                               grid_2d: Optional[Dict] = None,
+                               grid_origin: Optional[Tuple[float, float]] = None) -> Tuple[List[Dict], np.ndarray]:
         """
         Complete 5-step tower candidate extraction pipeline.
         
@@ -416,7 +444,8 @@ class TowerExtractor:
         
         # Step 3: Vertical continuity check
         candidates_step3 = self.step3_vertical_continuity_check(
-            candidates_step2, grid_features, points, tower_head_height)
+            candidates_step2, grid_features, points, tower_head_height,
+            grid_2d=grid_2d, grid_origin=grid_origin)
         
         if not candidates_step3:
             self.logger.warning("No candidates after step 3")
@@ -430,7 +459,9 @@ class TowerExtractor:
             return [], np.zeros(len(points), dtype=bool)
         
         # Step 5: Planar radius constraint
-        towers = self.step5_planar_radius_constraint(tower_clusters, points)
+        towers = self.step5_planar_radius_constraint(tower_clusters, points,
+                                                    grid_2d=grid_2d,
+                                                    grid_origin=grid_origin)
         
         # Create point mask
         tower_mask = np.zeros(len(points), dtype=bool)

@@ -83,6 +83,14 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     grid_2d = preprocessed['grid_2d']
     voxel_hash_3d = preprocessed['voxel_hash_3d']
     delta_h_min = preprocessed['delta_h_min']
+    # 原点（与预处理一致）
+    bounds = preprocessed.get('bounds', {})
+    min_coords = bounds.get('min_coords', None)
+    grid_origin = None
+    voxel_origin = None
+    if min_coords is not None and len(min_coords) >= 3:
+        grid_origin = (float(min_coords[0]), float(min_coords[1]))
+        voxel_origin = (float(min_coords[0]), float(min_coords[1]), float(min_coords[2]))
     
     print(f"✅ 过滤后点数: {len(filtered_points):,}")
     print(f"✅ 2D网格数: {len(grid_2d)}")
@@ -107,7 +115,9 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
         # 可视化体素网格
         visualizer.visualize_voxel_grid(
             voxel_hash_3d, grid_2d, filtered_points, config,
-            title="Step 3: Voxel Grid Structure"
+            title="Step 3: Voxel Grid Structure",
+            grid_origin=grid_origin,
+            voxel_origin=voxel_origin
         )
     
     # 4. Step 2: 特征计算
@@ -220,7 +230,7 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     print(f"平均段长度: {np.mean(segment_lengths):.2f}m")
     
     # 构建兼容性图
-    graph = powerline_extractor.build_segment_graph(segments, grid_2d)
+    graph = powerline_extractor.build_segment_graph(segments, grid_2d, grid_origin=grid_origin)
     print(f"✅ 兼容性图: {graph.number_of_nodes()} 节点, {graph.number_of_edges()} 边")
     
     # 收集统计信息

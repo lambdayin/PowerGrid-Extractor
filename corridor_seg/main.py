@@ -172,8 +172,16 @@ class CorridorSegmenter:
         self.logger.info("=== Stage 3: Power Line Extraction ===")
         stage3_start = time.time()
         
+        # Compute grid origin from preprocessing bounds for consistent indexing
+        bounds = preprocessed_data.get('bounds', {})
+        min_coords = bounds.get('min_coords', None)
+        grid_origin = None
+        if min_coords is not None and len(min_coords) >= 2:
+            grid_origin = (float(min_coords[0]), float(min_coords[1]))
+        
         power_lines, pl_mask = self.powerline_extractor.extract_power_lines(
-            linear_voxels, voxel_features, filtered_points, grid_2d, delta_h_min)
+            linear_voxels, voxel_features, filtered_points, grid_2d, delta_h_min,
+            grid_origin=grid_origin)
         
         stage3_time = time.time() - stage3_start
         self.logger.info(f"Stage 3 completed in {stage3_time:.2f}s")
@@ -198,7 +206,8 @@ class CorridorSegmenter:
         stage5_start = time.time()
         
         towers, tower_mask = self.tower_extractor.extract_tower_candidates(
-            grid_features, filtered_points, delta_h_min, tower_head_height)
+            grid_features, filtered_points, delta_h_min, tower_head_height,
+            grid_2d=grid_2d, grid_origin=grid_origin)
         
         stage5_time = time.time() - stage5_start
         self.logger.info(f"Stage 5 completed in {stage5_time:.2f}s")

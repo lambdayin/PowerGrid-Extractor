@@ -147,7 +147,9 @@ class PowerGridVisualizer:
 
     def visualize_voxel_grid(self, voxel_hash_3d: Dict, grid_2d: Dict, points: np.ndarray,
                            config, title: str = "Voxel Grid Structure",
-                           save_name: str = "03_voxel_grid.png"):
+                           save_name: str = "03_voxel_grid.png",
+                           grid_origin: Optional[Tuple[float, float]] = None,
+                           voxel_origin: Optional[Tuple[float, float, float]] = None):
         """可视化体素网格结构
         
         Args:
@@ -157,10 +159,34 @@ class PowerGridVisualizer:
             config: 配置对象
             title: 图标题
             save_name: 保存文件名
+            grid_origin: 2D网格原点 (min_x, min_y)，与预处理一致（可选）
+            voxel_origin: 3D体素原点 (min_x, min_y, min_z)，与预处理一致（可选）
         """
         print(f"🎨 可视化体素网格: {len(voxel_hash_3d)} 个3D体素, {len(grid_2d)} 个2D网格")
         
         fig = plt.figure(figsize=(15, 10))
+        
+        # 计算/回退原点（与预处理保持一致）
+        if points is not None and len(points) > 0:
+            pts_min = points.min(axis=0)
+        else:
+            pts_min = np.array([0.0, 0.0, 0.0])
+        
+        if grid_origin is None:
+            origin_x_2d = float(pts_min[0])
+            origin_y_2d = float(pts_min[1])
+        else:
+            origin_x_2d = float(grid_origin[0])
+            origin_y_2d = float(grid_origin[1])
+        
+        if voxel_origin is None:
+            origin_x_3d = float(pts_min[0])
+            origin_y_3d = float(pts_min[1])
+            origin_z_3d = float(pts_min[2])
+        else:
+            origin_x_3d = float(voxel_origin[0])
+            origin_y_3d = float(voxel_origin[1])
+            origin_z_3d = float(voxel_origin[2])
         
         # 2D网格可视化
         ax1 = fig.add_subplot(221)
@@ -169,8 +195,8 @@ class PowerGridVisualizer:
         
         for grid_key, point_indices in grid_2d.items():
             x_idx, y_idx = grid_key
-            center_x = x_idx * config.grid_2d_size + config.grid_2d_size/2
-            center_y = y_idx * config.grid_2d_size + config.grid_2d_size/2
+            center_x = origin_x_2d + x_idx * config.grid_2d_size + config.grid_2d_size/2
+            center_y = origin_y_2d + y_idx * config.grid_2d_size + config.grid_2d_size/2
             grid_centers.append([center_x, center_y])
             grid_point_counts.append(len(point_indices))
         
@@ -191,9 +217,9 @@ class PowerGridVisualizer:
         
         for voxel_key, point_indices in voxel_hash_3d.items():
             x_idx, y_idx, z_idx = voxel_key
-            center_x = x_idx * config.voxel_size + config.voxel_size/2
-            center_y = y_idx * config.voxel_size + config.voxel_size/2
-            center_z = z_idx * config.voxel_size + config.voxel_size/2
+            center_x = origin_x_3d + x_idx * config.voxel_size + config.voxel_size/2
+            center_y = origin_y_3d + y_idx * config.voxel_size + config.voxel_size/2
+            center_z = origin_z_3d + z_idx * config.voxel_size + config.voxel_size/2
             voxel_centers.append([center_x, center_y, center_z])
             voxel_point_counts.append(len(point_indices))
         

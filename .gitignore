@@ -92,6 +92,7 @@ dmypy.json
 /detection_results/
 /my_debug_results/
 /debug_visualizations/
+/detection_results_origin/
 
 # Temporary data files
 /temp_sample.las

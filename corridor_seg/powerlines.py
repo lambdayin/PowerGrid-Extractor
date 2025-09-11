@@ -128,13 +128,15 @@ class PowerLineExtractor:
             'distance_compatible': distance < 50.0   # 50m distance tolerance
         }
     
-    def build_segment_graph(self, segments: List[Dict], grid_2d: Dict) -> nx.Graph:
+    def build_segment_graph(self, segments: List[Dict], grid_2d: Dict, 
+                            grid_origin: Optional[Tuple[float, float]] = None) -> nx.Graph:
         """
         Build graph connecting compatible segments using 8-neighborhood.
         
         Args:
             segments: Local PL segments
             grid_2d: 2D grid organization
+            grid_origin: (min_x, min_y) used by preprocessing grid indexer
             
         Returns:
             graph: NetworkX graph with segment connections
@@ -144,12 +146,20 @@ class PowerLineExtractor:
         # Create segment spatial index
         segment_by_grid = defaultdict(list)
         grid_size = self.config.grid_2d_size
+        origin_x = 0.0
+        origin_y = 0.0
+        if grid_origin is not None:
+            try:
+                origin_x = float(grid_origin[0])
+                origin_y = float(grid_origin[1])
+            except Exception:
+                pass
         
         for segment in segments:
             centroid = segment['centroid']
             # Map centroid to grid cell
-            grid_i = int(centroid[0] // grid_size)
-            grid_j = int(centroid[1] // grid_size)
+            grid_i = int((centroid[0] - origin_x) // grid_size)
+            grid_j = int((centroid[1] - origin_y) // grid_size)
             segment_by_grid[(grid_i, grid_j)].append(segment)
         
         # Build compatibility graph
@@ -358,7 +368,8 @@ class PowerLineExtractor:
         return filtered_lines
     
     def extract_power_lines(self, linear_voxels: Dict, voxel_features: Dict,
-                           points: np.ndarray, grid_2d: Dict, delta_h_min: float) -> Tuple[List[Dict], np.ndarray]:
+                           points: np.ndarray, grid_2d: Dict, delta_h_min: float,
+                           grid_origin: Optional[Tuple[float, float]] = None) -> Tuple[List[Dict], np.ndarray]:
         """
         Complete power line extraction pipeline.
         
@@ -368,6 +379,7 @@ class PowerLineExtractor:
             points: Point cloud
             grid_2d: 2D grid organization
             delta_h_min: Minimum height threshold
+            grid_origin: (min_x, min_y) used by preprocessing grid indexer
             
         Returns:
             power_lines: Extracted power lines
@@ -383,7 +395,7 @@ class PowerLineExtractor:
             return [], np.zeros(len(points), dtype=bool)
         
         # 2. Build compatibility graph
-        graph = self.build_segment_graph(segments, grid_2d)
+        graph = self.build_segment_graph(segments, grid_2d, grid_origin)
         
         # 3. Global merging
         power_lines = self.merge_segments_global(graph, segments)
