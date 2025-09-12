@@ -704,15 +704,20 @@ Length Range:
   • Linearity Threshold: {stats.get('a1d_threshold', 'N/A')}
   • Linear Ratio: {stats.get('linear_ratio', 'N/A'):.1f}%
   
-🔗 SEGMENTATION
+🔗 POWER LINES
   • Local Segments: {stats.get('segments', 'N/A'):,}
   • Graph Nodes: {stats.get('graph_nodes', 'N/A'):,}
   • Graph Edges: {stats.get('graph_edges', 'N/A'):,}
+  • Final Lines: {stats.get('final_powerlines', 'N/A'):,}
+  • Total Length: {stats.get('total_length', 'N/A'):.1f} m
   
-⚡ FINAL RESULTS
-  • Power Lines (raw): {stats.get('raw_powerlines', 'N/A'):,}
-  • Power Lines (filtered): {stats.get('final_powerlines', 'N/A'):,}
-  • Total Length: {stats.get('total_length', 'N/A'):.1f} m"""
+🗼 TOWER DETECTION
+  • Step1 Candidates: {stats.get('tower_step1_candidates', 'N/A'):,}
+  • Step2 Candidates: {stats.get('tower_step2_candidates', 'N/A'):,}
+  • Step3 Candidates: {stats.get('tower_step3_candidates', 'N/A'):,}
+  • Tower Clusters: {stats.get('tower_clusters', 'N/A'):,}
+  • Final Towers: {stats.get('final_towers', 'N/A'):,}
+  • Tower Points: {stats.get('tower_points', 'N/A'):,}"""
         
         ax1.text(0.05, 0.95, pipeline_text, transform=ax1.transAxes, fontsize=11,
                 verticalalignment='top', fontfamily='monospace',
@@ -722,19 +727,20 @@ Length Range:
         ax2 = fig.add_subplot(122)
         
         # 创建数据保留率的瀑布图
-        stages = ['Original\nPoints', 'After\nFiltering', 'In Linear\nVoxels', 'In Segments', 'Final\nLines']
+        stages = ['Original\nPoints', 'After\nFiltering', 'In Linear\nVoxels', 'In Segments', 'Final\nLines', 'Tower\nPoints']
         values = [
             stats.get('original_points', 0),
             stats.get('filtered_points', 0), 
             stats.get('linear_points', 0),
             stats.get('segment_points', 0),
-            stats.get('final_points', 0)
+            stats.get('final_points', 0),
+            stats.get('tower_points', 0)
         ]
         
         # 确保所有值都有效
         valid_values = [v for v in values if v > 0]
         if len(valid_values) >= 2:
-            bars = ax2.bar(range(len(values)), values, color=['blue', 'green', 'orange', 'red', 'purple'], alpha=0.7)
+            bars = ax2.bar(range(len(values)), values, color=['blue', 'green', 'orange', 'red', 'purple', 'brown'], alpha=0.7)
             
             # 添加数值标签
             for i, (bar, val) in enumerate(zip(bars, values)):
@@ -760,3 +766,937 @@ Length Range:
         plt.show()
         
         print(f"  报告已保存到: {os.path.join(self.save_dir, save_name)}")
+
+    def visualize_tower_step1_initial_screening(self, candidate_grids: set, grid_features: Dict, 
+                                              delta_h_min: float, tower_head_height: float,
+                                              title: str = "Tower Step 1: Initial Height Screening",
+                                              save_name: str = "07_tower_step1_screening.png"):
+        """可视化塔检测步骤1：初始高度差筛选
+        
+        Args:
+            candidate_grids: 候选网格集合
+            grid_features: 网格特征
+            delta_h_min: 最小高度间隙
+            tower_head_height: 塔头高度
+            title: 图标题
+            save_name: 保存文件名
+        """
+        print(f"🎨 可视化塔检测步骤1: {len(candidate_grids)} 个候选网格")
+        
+        fig = plt.figure(figsize=(15, 10))
+        
+        # 所有网格的高度差分布
+        ax1 = fig.add_subplot(221)
+        all_height_diffs = [features.get('HeightDiff', 0) for features in grid_features.values()]
+        threshold = max(delta_h_min, tower_head_height * 0.5)
+        
+        ax1.hist(all_height_diffs, bins=50, alpha=0.7, color='lightblue', label='All grids')
+        ax1.axvline(x=threshold, color='red', linestyle='--', linewidth=2, 
+                   label=f'Threshold = {threshold:.1f}m')
+        ax1.set_xlabel('Height Difference (m)')
+        ax1.set_ylabel('Grid Count')
+        ax1.set_title('Grid Height Difference Distribution')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # 候选网格的空间分布
+        ax2 = fig.add_subplot(222)
+        if candidate_grids:
+            candidate_coords = []
+            candidate_heights = []
+            for grid_idx in candidate_grids:
+                if grid_idx in grid_features:
+                    features = grid_features[grid_idx]
+                    if 'centroid' in features:
+                        candidate_coords.append(features['centroid'][:2])
+                        candidate_heights.append(features.get('HeightDiff', 0))
+            
+            if candidate_coords:
+                candidate_coords = np.array(candidate_coords)
+                scatter = ax2.scatter(candidate_coords[:, 0], candidate_coords[:, 1], 
+                                    c=candidate_heights, cmap='hot', s=50)
+                ax2.set_xlabel('X (m)')
+                ax2.set_ylabel('Y (m)')
+                ax2.set_title('Candidate Grid Locations')
+                ax2.set_aspect('equal')
+                plt.colorbar(scatter, ax=ax2, label='Height Diff (m)')
+        
+        # 候选网格的高度差分布
+        ax3 = fig.add_subplot(223)
+        if candidate_grids:
+            candidate_height_diffs = []
+            for grid_idx in candidate_grids:
+                if grid_idx in grid_features:
+                    candidate_height_diffs.append(grid_features[grid_idx].get('HeightDiff', 0))
+            
+            if candidate_height_diffs:
+                ax3.hist(candidate_height_diffs, bins=min(20, len(candidate_height_diffs)), 
+                        alpha=0.7, color='orange')
+                ax3.axvline(x=threshold, color='red', linestyle='--', linewidth=2)
+                ax3.set_xlabel('Height Difference (m)')
+                ax3.set_ylabel('Candidate Grid Count')
+                ax3.set_title('Candidate Grid Height Distribution')
+                ax3.grid(True, alpha=0.3)
+        
+        # 统计信息
+        ax4 = fig.add_subplot(224)
+        ax4.axis('off')
+        
+        stats_text = f"""Step 1 Statistics:
+        
+Total Grids: {len(grid_features):,}
+Candidate Grids: {len(candidate_grids):,}
+Selection Rate: {len(candidate_grids)/len(grid_features)*100:.1f}%
+
+Parameters:
+  δh_min: {delta_h_min:.2f} m
+  Tower Head Height: {tower_head_height:.2f} m
+  Threshold: {threshold:.2f} m"""
+        
+        if all_height_diffs:
+            stats_text += f"""
+
+Height Diff Stats:
+  Mean: {np.mean(all_height_diffs):.2f} m
+  Max: {np.max(all_height_diffs):.2f} m
+  >Threshold: {sum(1 for h in all_height_diffs if h > threshold)} grids"""
+        
+        ax4.text(0.05, 0.95, stats_text, transform=ax4.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8))
+        
+        plt.suptitle(title)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.save_dir, save_name), dpi=150, bbox_inches='tight')
+        plt.show()
+
+    def visualize_tower_step2_window_refinement(self, initial_candidates: set, refined_candidates: set,
+                                              grid_features: Dict, tower_head_height: float,
+                                              title: str = "Tower Step 2: Moving Window Refinement",
+                                              save_name: str = "08_tower_step2_refinement.png"):
+        """可视化塔检测步骤2：移动窗口细化
+        
+        Args:
+            initial_candidates: 初始候选网格
+            refined_candidates: 细化后的候选网格
+            grid_features: 网格特征
+            tower_head_height: 塔头高度
+            title: 图标题
+            save_name: 保存文件名
+        """
+        print(f"🎨 可视化塔检测步骤2: {len(initial_candidates)} -> {len(refined_candidates)} 个候选网格")
+        
+        fig = plt.figure(figsize=(15, 8))
+        
+        # 细化前后对比 - 空间分布
+        ax1 = fig.add_subplot(131)
+        
+        # 初始候选
+        if initial_candidates:
+            initial_coords = []
+            for grid_idx in initial_candidates:
+                if grid_idx in grid_features and 'centroid' in grid_features[grid_idx]:
+                    initial_coords.append(grid_features[grid_idx]['centroid'][:2])
+            
+            if initial_coords:
+                initial_coords = np.array(initial_coords)
+                ax1.scatter(initial_coords[:, 0], initial_coords[:, 1], 
+                           c='lightblue', s=30, alpha=0.7, label=f'Initial ({len(initial_candidates)})')
+        
+        # 细化后候选
+        if refined_candidates:
+            refined_coords = []
+            for grid_idx in refined_candidates:
+                if grid_idx in grid_features and 'centroid' in grid_features[grid_idx]:
+                    refined_coords.append(grid_features[grid_idx]['centroid'][:2])
+            
+            if refined_coords:
+                refined_coords = np.array(refined_coords)
+                ax1.scatter(refined_coords[:, 0], refined_coords[:, 1], 
+                           c='red', s=50, alpha=0.8, label=f'Refined ({len(refined_candidates)})')
+        
+        ax1.set_xlabel('X (m)')
+        ax1.set_ylabel('Y (m)')
+        ax1.set_title('Spatial Distribution Comparison')
+        ax1.legend()
+        ax1.set_aspect('equal')
+        ax1.grid(True, alpha=0.3)
+        
+        # 被移除的候选网格
+        ax2 = fig.add_subplot(132)
+        removed_candidates = initial_candidates - refined_candidates
+        
+        if removed_candidates:
+            removed_coords = []
+            removed_heights = []
+            for grid_idx in removed_candidates:
+                if grid_idx in grid_features:
+                    features = grid_features[grid_idx]
+                    if 'centroid' in features:
+                        removed_coords.append(features['centroid'][:2])
+                        removed_heights.append(features.get('HeightDiff', 0))
+            
+            if removed_coords:
+                removed_coords = np.array(removed_coords)
+                scatter = ax2.scatter(removed_coords[:, 0], removed_coords[:, 1], 
+                                    c=removed_heights, cmap='Reds', s=30, alpha=0.7)
+                ax2.set_xlabel('X (m)')
+                ax2.set_ylabel('Y (m)')
+                ax2.set_title(f'Removed Candidates ({len(removed_candidates)})')
+                ax2.set_aspect('equal')
+                plt.colorbar(scatter, ax=ax2, label='Height Diff (m)')
+        
+        # 统计信息和参数
+        ax3 = fig.add_subplot(133)
+        ax3.axis('off')
+        
+        retention_rate = len(refined_candidates) / max(1, len(initial_candidates)) * 100
+        removal_rate = 100 - retention_rate
+        
+        stats_text = f"""Step 2 Statistics:
+        
+Initial Candidates: {len(initial_candidates):,}
+Refined Candidates: {len(refined_candidates):,}
+Removed: {len(removed_candidates):,}
+
+Retention Rate: {retention_rate:.1f}%
+Removal Rate: {removal_rate:.1f}%
+
+Parameters:
+  Window Size: 2×2
+  Tower Head Height: {tower_head_height:.2f} m
+  Height Variance Check: Enabled"""
+        
+        # 添加高度差统计
+        if refined_candidates:
+            refined_heights = []
+            for grid_idx in refined_candidates:
+                if grid_idx in grid_features:
+                    refined_heights.append(grid_features[grid_idx].get('HeightDiff', 0))
+            
+            if refined_heights:
+                stats_text += f"""
+                
+Refined Grid Heights:
+  Mean: {np.mean(refined_heights):.2f} m
+  Min: {min(refined_heights):.2f} m
+  Max: {max(refined_heights):.2f} m"""
+        
+        ax3.text(0.05, 0.95, stats_text, transform=ax3.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcyan", alpha=0.8))
+        
+        plt.suptitle(title)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.save_dir, save_name), dpi=150, bbox_inches='tight')
+        plt.show()
+
+    def visualize_tower_step3_vertical_continuity(self, step2_candidates: set, step3_candidates: set,
+                                                 grid_features: Dict, points: np.ndarray, 
+                                                 tower_head_height: float,
+                                                 title: str = "Tower Step 3: Vertical Continuity Check",
+                                                 save_name: str = "09_tower_step3_continuity.png"):
+        """可视化塔检测步骤3：垂直连续性检查
+        
+        Args:
+            step2_candidates: 步骤2的候选网格
+            step3_candidates: 步骤3的候选网格 
+            grid_features: 网格特征
+            points: 点云数据
+            tower_head_height: 塔头高度
+            title: 图标题
+            save_name: 保存文件名
+        """
+        print(f"🎨 可视化塔检测步骤3: {len(step2_candidates)} -> {len(step3_candidates)} 个候选网格")
+        
+        fig = plt.figure(figsize=(15, 10))
+        
+        # 垂直连续性检查结果对比
+        ax1 = fig.add_subplot(221)
+        failed_candidates = step2_candidates - step3_candidates
+        
+        # 通过和失败的候选网格分布
+        if step3_candidates:
+            passed_coords = []
+            for grid_idx in step3_candidates:
+                if grid_idx in grid_features and 'centroid' in grid_features[grid_idx]:
+                    passed_coords.append(grid_features[grid_idx]['centroid'][:2])
+            
+            if passed_coords:
+                passed_coords = np.array(passed_coords)
+                ax1.scatter(passed_coords[:, 0], passed_coords[:, 1], 
+                           c='green', s=50, alpha=0.8, label=f'Passed ({len(step3_candidates)})')
+        
+        if failed_candidates:
+            failed_coords = []
+            for grid_idx in failed_candidates:
+                if grid_idx in grid_features and 'centroid' in grid_features[grid_idx]:
+                    failed_coords.append(grid_features[grid_idx]['centroid'][:2])
+            
+            if failed_coords:
+                failed_coords = np.array(failed_coords)
+                ax1.scatter(failed_coords[:, 0], failed_coords[:, 1], 
+                           c='red', s=30, alpha=0.6, label=f'Failed ({len(failed_candidates)})', marker='x')
+        
+        ax1.set_xlabel('X (m)')
+        ax1.set_ylabel('Y (m)')
+        ax1.set_title('Vertical Continuity Check Results')
+        ax1.legend()
+        ax1.set_aspect('equal')
+        ax1.grid(True, alpha=0.3)
+        
+        # 高度分析：通过vs失败的候选
+        ax2 = fig.add_subplot(222)
+        if step3_candidates and failed_candidates:
+            passed_max_heights = []
+            failed_max_heights = []
+            
+            for grid_idx in step3_candidates:
+                if grid_idx in grid_features:
+                    features = grid_features[grid_idx]
+                    passed_max_heights.append(features.get('max_height', 0))
+            
+            for grid_idx in failed_candidates:
+                if grid_idx in grid_features:
+                    features = grid_features[grid_idx]
+                    failed_max_heights.append(features.get('max_height', 0))
+            
+            if passed_max_heights:
+                ax2.hist(passed_max_heights, bins=20, alpha=0.7, color='green', 
+                        label=f'Passed ({len(passed_max_heights)})')
+            if failed_max_heights:
+                ax2.hist(failed_max_heights, bins=20, alpha=0.7, color='red', 
+                        label=f'Failed ({len(failed_max_heights)})')
+            
+            ax2.axvline(x=tower_head_height, color='blue', linestyle='--', 
+                       linewidth=2, label=f'Height Threshold = {tower_head_height:.1f}m')
+            ax2.set_xlabel('Maximum Height (m)')
+            ax2.set_ylabel('Grid Count')
+            ax2.set_title('Height Distribution Comparison')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+        
+        # 垂直结构示例（选择几个代表性候选）
+        ax3 = fig.add_subplot(223)
+        if step3_candidates:
+            sample_candidates = list(step3_candidates)[:3]  # 取前3个作为示例
+            colors = ['green', 'blue', 'purple']
+            
+            for i, grid_idx in enumerate(sample_candidates):
+                if grid_idx in grid_features:
+                    # 这里需要获取该网格的点云数据来展示垂直结构
+                    # 简化版本：显示网格的高度范围
+                    features = grid_features[grid_idx]
+                    if 'centroid' in features:
+                        centroid = features['centroid']
+                        height_diff = features.get('HeightDiff', 0)
+                        
+                        # 模拟垂直结构显示
+                        ax3.bar(i, height_diff, color=colors[i], alpha=0.7, 
+                               label=f'Grid {grid_idx}')
+            
+            ax3.set_xlabel('Sample Grid Index')
+            ax3.set_ylabel('Height Difference (m)')
+            ax3.set_title('Vertical Structure Examples')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+        
+        # 统计信息
+        ax4 = fig.add_subplot(224)
+        ax4.axis('off')
+        
+        pass_rate = len(step3_candidates) / max(1, len(step2_candidates)) * 100
+        fail_rate = 100 - pass_rate
+        
+        stats_text = f"""Step 3 Statistics:
+        
+Input Candidates: {len(step2_candidates):,}
+Passed Continuity: {len(step3_candidates):,}
+Failed Continuity: {len(failed_candidates):,}
+
+Pass Rate: {pass_rate:.1f}%
+Fail Rate: {fail_rate:.1f}%
+
+Parameters:
+  Max Height Gap: {tower_head_height:.2f} m
+  Min Height Threshold: {tower_head_height:.2f} m"""
+        
+        if step3_candidates:
+            # 计算通过候选的统计
+            passed_heights = []
+            for grid_idx in step3_candidates:
+                if grid_idx in grid_features:
+                    passed_heights.append(grid_features[grid_idx].get('HeightDiff', 0))
+            
+            if passed_heights:
+                stats_text += f"""
+                
+Passed Candidates:
+  Mean Height Diff: {np.mean(passed_heights):.2f} m
+  Max Height Diff: {max(passed_heights):.2f} m"""
+        
+        ax4.text(0.05, 0.95, stats_text, transform=ax4.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightsteelblue", alpha=0.8))
+        
+        plt.suptitle(title)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.save_dir, save_name), dpi=150, bbox_inches='tight')
+        plt.show()
+
+    def visualize_tower_step4_clustering(self, valid_candidates: set, tower_clusters: List[Dict],
+                                        grid_features: Dict, 
+                                        title: str = "Tower Step 4: Clustering to Towers",
+                                        save_name: str = "10_tower_step4_clustering.png"):
+        """可视化塔检测步骤4：聚类成塔
+        
+        Args:
+            valid_candidates: 有效候选网格
+            tower_clusters: 塔聚类结果
+            grid_features: 网格特征
+            title: 图标题
+            save_name: 保存文件名
+        """
+        print(f"🎨 可视化塔检测步骤4: {len(valid_candidates)} 个候选网格 -> {len(tower_clusters)} 个塔聚类")
+        
+        fig = plt.figure(figsize=(15, 10))
+        
+        # 聚类结果空间分布
+        ax1 = fig.add_subplot(221)
+        
+        if tower_clusters:
+            colors = plt.cm.Set3(np.linspace(0, 1, len(tower_clusters)))
+            
+            for i, cluster in enumerate(tower_clusters):
+                cluster_coords = []
+                for grid_idx in cluster['grid_cells']:
+                    if grid_idx in grid_features and 'centroid' in grid_features[grid_idx]:
+                        cluster_coords.append(grid_features[grid_idx]['centroid'][:2])
+                
+                if cluster_coords:
+                    cluster_coords = np.array(cluster_coords)
+                    ax1.scatter(cluster_coords[:, 0], cluster_coords[:, 1], 
+                               c=[colors[i]], s=100, alpha=0.8, 
+                               label=f'Tower {i} ({len(cluster["grid_cells"])} cells)')
+                    
+                    # 绘制聚类中心
+                    centroid = cluster['centroid'][:2]
+                    ax1.scatter(centroid[0], centroid[1], c='red', s=200, marker='*', 
+                               edgecolor='black', linewidth=2)
+        
+        ax1.set_xlabel('X (m)')
+        ax1.set_ylabel('Y (m)')
+        ax1.set_title('Tower Cluster Spatial Distribution')
+        if len(tower_clusters) <= 10:
+            ax1.legend()
+        ax1.set_aspect('equal')
+        ax1.grid(True, alpha=0.3)
+        
+        # 聚类大小分布
+        ax2 = fig.add_subplot(222)
+        if tower_clusters:
+            cluster_sizes = [len(cluster['grid_cells']) for cluster in tower_clusters]
+            ax2.hist(cluster_sizes, bins=min(10, max(cluster_sizes)), 
+                    alpha=0.7, color='skyblue', edgecolor='black')
+            ax2.set_xlabel('Number of Grid Cells per Cluster')
+            ax2.set_ylabel('Cluster Count')
+            ax2.set_title('Cluster Size Distribution')
+            ax2.grid(True, alpha=0.3)
+            
+            # 添加统计线
+            mean_size = np.mean(cluster_sizes)
+            ax2.axvline(x=mean_size, color='red', linestyle='--', 
+                       label=f'Mean: {mean_size:.1f}')
+            ax2.legend()
+        
+        # 聚类质量分析
+        ax3 = fig.add_subplot(223)
+        if tower_clusters:
+            cluster_heights = [cluster['max_height_diff'] for cluster in tower_clusters]
+            cluster_densities = [cluster['avg_density'] for cluster in tower_clusters]
+            
+            scatter = ax3.scatter(cluster_sizes, cluster_heights, 
+                                c=cluster_densities, cmap='viridis', s=100, alpha=0.7)
+            ax3.set_xlabel('Cluster Size (grid cells)')
+            ax3.set_ylabel('Max Height Difference (m)')
+            ax3.set_title('Cluster Quality Analysis')
+            plt.colorbar(scatter, ax=ax3, label='Average Density')
+            ax3.grid(True, alpha=0.3)
+        
+        # 聚类统计信息
+        ax4 = fig.add_subplot(224)
+        ax4.axis('off')
+        
+        stats_text = f"""Step 4 Statistics:
+        
+Valid Candidates: {len(valid_candidates):,}
+Tower Clusters: {len(tower_clusters):,}
+Clustering Rate: {len(tower_clusters)/max(1, len(valid_candidates))*100:.1f}%"""
+        
+        if tower_clusters:
+            cluster_sizes = [len(cluster['grid_cells']) for cluster in tower_clusters]
+            total_points = sum(cluster['total_points'] for cluster in tower_clusters)
+            
+            stats_text += f"""
+            
+Cluster Statistics:
+  Total Clustered Cells: {sum(cluster_sizes):,}
+  Mean Cluster Size: {np.mean(cluster_sizes):.1f} cells
+  Min/Max Size: {min(cluster_sizes)}/{max(cluster_sizes)} cells
+  Total Points: {total_points:,}"""
+            
+            # 高度和密度统计
+            cluster_heights = [cluster['max_height_diff'] for cluster in tower_clusters]
+            cluster_densities = [cluster['avg_density'] for cluster in tower_clusters]
+            
+            stats_text += f"""
+            
+Quality Metrics:
+  Mean Max Height: {np.mean(cluster_heights):.2f} m
+  Mean Density: {np.mean(cluster_densities):.2f}
+  Height Range: {min(cluster_heights):.1f}-{max(cluster_heights):.1f} m"""
+        
+        ax4.text(0.05, 0.95, stats_text, transform=ax4.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightpink", alpha=0.8))
+        
+        plt.suptitle(title)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.save_dir, save_name), dpi=150, bbox_inches='tight')
+        plt.show()
+
+    def visualize_tower_step5_radius_constraint(self, tower_clusters: List[Dict], final_towers: List[Dict],
+                                               points: np.ndarray,
+                                               title: str = "Tower Step 5: Planar Radius Constraint",
+                                               save_name: str = "11_tower_step5_final.png"):
+        """可视化塔检测步骤5：平面半径约束和最终结果
+        
+        Args:
+            tower_clusters: 聚类的塔
+            final_towers: 最终的塔
+            points: 点云数据
+            title: 图标题
+            save_name: 保存文件名
+        """
+        print(f"🎨 可视化塔检测步骤5: {len(tower_clusters)} -> {len(final_towers)} 个最终塔")
+        
+        fig = plt.figure(figsize=(18, 12))
+        
+        # 背景点云采样
+        bg_sample = points[::1000] if len(points) > 10000 else points
+        
+        # 最终塔的3D视图
+        ax1 = fig.add_subplot(231, projection='3d')
+        ax1.scatter(bg_sample[:, 0], bg_sample[:, 1], bg_sample[:, 2], 
+                   c='lightgray', s=1, alpha=0.2)
+        
+        if final_towers:
+            colors = plt.cm.Set1(np.linspace(0, 1, len(final_towers)))
+            for i, tower in enumerate(final_towers):
+                if 'points' in tower and len(tower['points']) > 0:
+                    tower_points = tower['points']
+                    ax1.scatter(tower_points[:, 0], tower_points[:, 1], tower_points[:, 2],
+                               c=[colors[i]], s=20, label=f'Tower {i}')
+        
+        ax1.set_xlabel('X (m)')
+        ax1.set_ylabel('Y (m)')
+        ax1.set_zlabel('Z (m)')
+        ax1.set_title(f'Final Towers 3D View ({len(final_towers)} towers)')
+        if len(final_towers) <= 5:
+            ax1.legend()
+        
+        # 最终塔的XY平面视图
+        ax2 = fig.add_subplot(232)
+        ax2.scatter(bg_sample[:, 0], bg_sample[:, 1], c='lightgray', s=1, alpha=0.3)
+        
+        if final_towers:
+            for i, tower in enumerate(final_towers):
+                if 'points' in tower and len(tower['points']) > 0:
+                    tower_points = tower['points']
+                    ax2.scatter(tower_points[:, 0], tower_points[:, 1],
+                               c=[colors[i]], s=20, label=f'Tower {i}')
+                    
+                    # 绘制半径约束圆
+                    centroid_2d = tower['centroid'][:2]
+                    radius = tower.get('radius', 0)
+                    max_radius = tower.get('max_allowed_radius', radius)
+                    
+                    # 实际半径
+                    circle1 = plt.Circle(centroid_2d, radius, fill=False, 
+                                       color=colors[i], linestyle='-', alpha=0.8)
+                    ax2.add_patch(circle1)
+                    
+                    # 最大允许半径
+                    circle2 = plt.Circle(centroid_2d, max_radius, fill=False, 
+                                       color=colors[i], linestyle='--', alpha=0.5)
+                    ax2.add_patch(circle2)
+        
+        ax2.set_xlabel('X (m)')
+        ax2.set_ylabel('Y (m)')
+        ax2.set_title('Final Towers Top View with Radius Constraints')
+        ax2.set_aspect('equal')
+        
+        # 半径约束分析
+        ax3 = fig.add_subplot(233)
+        if tower_clusters:
+            # 比较通过和未通过半径约束的塔
+            failed_towers = [t for t in tower_clusters if t not in final_towers]
+            
+            if final_towers:
+                final_radii = [t.get('radius', 0) for t in final_towers]
+                final_max_radii = [t.get('max_allowed_radius', 0) for t in final_towers]
+                
+                ax3.scatter(final_radii, final_max_radii, c='green', s=50, 
+                           alpha=0.7, label=f'Passed ({len(final_towers)})')
+            
+            # 添加约束线 y=x
+            if final_towers:
+                max_val = max(max(final_radii), max(final_max_radii))
+                ax3.plot([0, max_val], [0, max_val], 'r--', alpha=0.7, 
+                        label='Constraint Line (R ≤ r+5)')
+            
+            ax3.set_xlabel('Actual Radius (m)')
+            ax3.set_ylabel('Max Allowed Radius (m)')
+            ax3.set_title('Radius Constraint Analysis')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+        
+        # 塔的形状规则性分析
+        ax4 = fig.add_subplot(234)
+        if final_towers:
+            aspect_ratios = []
+            horizontal_spreads = []
+            
+            for tower in final_towers:
+                if 'points' in tower and len(tower['points']) > 0:
+                    tower_points = tower['points']
+                    heights = tower_points[:, 2]
+                    height_range = heights.max() - heights.min()
+                    
+                    centroid_2d = tower_points[:, :2].mean(axis=0)
+                    horizontal_distances = np.linalg.norm(tower_points[:, :2] - centroid_2d, axis=1)
+                    horizontal_spread = np.percentile(horizontal_distances, 95)
+                    
+                    if horizontal_spread > 0:
+                        aspect_ratio = height_range / horizontal_spread
+                        aspect_ratios.append(aspect_ratio)
+                        horizontal_spreads.append(horizontal_spread)
+            
+            if aspect_ratios:
+                scatter = ax4.scatter(horizontal_spreads, aspect_ratios, 
+                                    c=range(len(aspect_ratios)), cmap='plasma', s=60)
+                ax4.axhline(y=2.0, color='red', linestyle='--', alpha=0.7, 
+                           label='Min Aspect Ratio = 2.0')
+                ax4.set_xlabel('Horizontal Spread (m)')
+                ax4.set_ylabel('Height/Width Aspect Ratio')
+                ax4.set_title('Tower Shape Regularity')
+                ax4.legend()
+                ax4.grid(True, alpha=0.3)
+                plt.colorbar(scatter, ax=ax4, label='Tower Index')
+        
+        # 塔的高度分布
+        ax5 = fig.add_subplot(235)
+        if final_towers:
+            tower_heights = []
+            for tower in final_towers:
+                if 'points' in tower and len(tower['points']) > 0:
+                    heights = tower['points'][:, 2]
+                    tower_heights.extend(heights)
+            
+            if tower_heights:
+                ax5.hist(tower_heights, bins=30, alpha=0.7, color='brown', edgecolor='black')
+                ax5.set_xlabel('Height (m)')
+                ax5.set_ylabel('Point Count')
+                ax5.set_title('Final Tower Height Distribution')
+                ax5.grid(True, alpha=0.3)
+                
+                # 添加统计线
+                mean_height = np.mean(tower_heights)
+                ax5.axvline(x=mean_height, color='red', linestyle='--', 
+                           label=f'Mean: {mean_height:.1f}m')
+                ax5.legend()
+        
+        # 最终统计信息
+        ax6 = fig.add_subplot(236)
+        ax6.axis('off')
+        
+        success_rate = len(final_towers) / max(1, len(tower_clusters)) * 100
+        
+        stats_text = f"""Step 5 Final Results:
+        
+Tower Clusters: {len(tower_clusters):,}
+Final Towers: {len(final_towers):,}
+Success Rate: {success_rate:.1f}%"""
+        
+        if final_towers:
+            total_points = sum(len(t.get('points', [])) for t in final_towers)
+            tower_radii = [t.get('radius', 0) for t in final_towers]
+            
+            stats_text += f"""
+            
+Final Tower Statistics:
+  Total Points: {total_points:,}
+  Avg Points/Tower: {total_points/len(final_towers):.0f}"""
+            
+            if tower_radii:
+                stats_text += f"""
+  Mean Radius: {np.mean(tower_radii):.2f} m
+  Radius Range: {min(tower_radii):.1f}-{max(tower_radii):.1f} m"""
+            
+            # 形状统计
+            if 'aspect_ratios' in locals() and aspect_ratios:
+                stats_text += f"""
+                
+Shape Analysis:
+  Mean Aspect Ratio: {np.mean(aspect_ratios):.1f}
+  Towers with AR>2: {sum(1 for ar in aspect_ratios if ar > 2.0)}"""
+        
+        ax6.text(0.05, 0.95, stats_text, transform=ax6.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgreen", alpha=0.8))
+        
+        plt.suptitle(title)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.save_dir, save_name), dpi=150, bbox_inches='tight')
+        plt.show()
+        
+        if final_towers:
+            print(f"  最终提取到 {len(final_towers)} 个塔")
+            total_points = sum(len(t.get('points', [])) for t in final_towers)
+            print(f"  包含 {total_points:,} 个点 ({total_points/len(points)*100:.2f}%)")
+
+    def visualize_complete_power_grid_system(self, power_lines: List[Dict], towers: List[Dict], 
+                                           points: np.ndarray,
+                                           title: str = "Complete Power Grid System",
+                                           save_name: str = "12_complete_system.png"):
+        """可视化完整的电力网格系统（电力线+塔）
+        
+        Args:
+            power_lines: 电力线列表
+            towers: 塔列表
+            points: 原始点云
+            title: 图标题  
+            save_name: 保存文件名
+        """
+        print(f"🎨 可视化完整电力网格系统: {len(power_lines)} 条电力线 + {len(towers)} 个塔")
+        
+        fig = plt.figure(figsize=(20, 12))
+        
+        # 背景点云采样
+        bg_sample = points[::2000] if len(points) > 20000 else points
+        
+        # 3D完整系统视图
+        ax1 = fig.add_subplot(231, projection='3d')
+        ax1.scatter(bg_sample[:, 0], bg_sample[:, 1], bg_sample[:, 2], 
+                   c='lightgray', s=0.5, alpha=0.1)
+        
+        # 绘制电力线
+        if power_lines:
+            line_colors = plt.cm.Blues(np.linspace(0.3, 1, len(power_lines)))
+            for i, pl in enumerate(power_lines):
+                if 'point_indices' in pl and len(pl['point_indices']) > 0:
+                    pl_points = points[pl['point_indices']]
+                    ax1.scatter(pl_points[:, 0], pl_points[:, 1], pl_points[:, 2],
+                               c=[line_colors[i]], s=10, alpha=0.8, label=f'Line {i}')
+        
+        # 绘制塔
+        if towers:
+            tower_colors = plt.cm.Reds(np.linspace(0.3, 1, len(towers)))
+            for i, tower in enumerate(towers):
+                if 'points' in tower and len(tower['points']) > 0:
+                    tower_points = tower['points']
+                    ax1.scatter(tower_points[:, 0], tower_points[:, 1], tower_points[:, 2],
+                               c=[tower_colors[i]], s=30, alpha=0.9, marker='^', 
+                               label=f'Tower {i}')
+        
+        ax1.set_xlabel('X (m)')
+        ax1.set_ylabel('Y (m)')
+        ax1.set_zlabel('Z (m)')
+        ax1.set_title('3D Complete Power Grid System')
+        
+        # XY平面视图
+        ax2 = fig.add_subplot(232)
+        ax2.scatter(bg_sample[:, 0], bg_sample[:, 1], c='lightgray', s=0.5, alpha=0.2)
+        
+        # 绘制电力线
+        if power_lines:
+            for i, pl in enumerate(power_lines):
+                if 'point_indices' in pl and len(pl['point_indices']) > 0:
+                    pl_points = points[pl['point_indices']]
+                    ax2.scatter(pl_points[:, 0], pl_points[:, 1],
+                               c=[line_colors[i]], s=8, alpha=0.7)
+        
+        # 绘制塔
+        if towers:
+            for i, tower in enumerate(towers):
+                if 'points' in tower and len(tower['points']) > 0:
+                    tower_points = tower['points']
+                    ax2.scatter(tower_points[:, 0], tower_points[:, 1],
+                               c=[tower_colors[i]], s=40, alpha=0.9, marker='^')
+                    
+                    # 标记塔的中心
+                    centroid_2d = tower['centroid'][:2]
+                    ax2.scatter(centroid_2d[0], centroid_2d[1], 
+                               c='black', s=100, marker='*', edgecolor='white', linewidth=2)
+        
+        ax2.set_xlabel('X (m)')
+        ax2.set_ylabel('Y (m)')
+        ax2.set_title('Top View - Complete System')
+        ax2.set_aspect('equal')
+        
+        # 高度分析对比
+        ax3 = fig.add_subplot(233)
+        if power_lines or towers:
+            line_heights = []
+            tower_heights = []
+            
+            if power_lines:
+                for pl in power_lines:
+                    if 'point_indices' in pl and len(pl['point_indices']) > 0:
+                        pl_points = points[pl['point_indices']]
+                        line_heights.extend(pl_points[:, 2])
+            
+            if towers:
+                for tower in towers:
+                    if 'points' in tower and len(tower['points']) > 0:
+                        tower_points = tower['points']
+                        tower_heights.extend(tower_points[:, 2])
+            
+            if line_heights:
+                ax3.hist(line_heights, bins=30, alpha=0.7, color='blue', 
+                        label=f'Power Lines ({len(line_heights)} pts)')
+            if tower_heights:
+                ax3.hist(tower_heights, bins=30, alpha=0.7, color='red', 
+                        label=f'Towers ({len(tower_heights)} pts)')
+            
+            ax3.set_xlabel('Height (m)')
+            ax3.set_ylabel('Point Count')
+            ax3.set_title('Height Distribution Comparison')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+        
+        # 系统连接分析
+        ax4 = fig.add_subplot(234)
+        if power_lines and towers:
+            # 分析电力线和塔的空间关系
+            tower_positions = []
+            for tower in towers:
+                if 'centroid' in tower:
+                    tower_positions.append(tower['centroid'][:2])
+            
+            if tower_positions:
+                tower_positions = np.array(tower_positions)
+                
+                # 绘制塔的位置
+                ax4.scatter(tower_positions[:, 0], tower_positions[:, 1], 
+                           c='red', s=100, marker='^', alpha=0.8, label='Towers')
+                
+                # 绘制电力线的中心线
+                for i, pl in enumerate(power_lines):
+                    if 'point_indices' in pl and len(pl['point_indices']) > 0:
+                        pl_points = points[pl['point_indices']]
+                        # 简化为线段的中心轨迹
+                        sorted_indices = np.argsort(pl_points[:, 0])  # 按X排序
+                        sorted_points = pl_points[sorted_indices]
+                        ax4.plot(sorted_points[:, 0], sorted_points[:, 1], 
+                                color=line_colors[i], linewidth=2, alpha=0.6)
+                
+                ax4.set_xlabel('X (m)')
+                ax4.set_ylabel('Y (m)')
+                ax4.set_title('System Connectivity Analysis')
+                ax4.legend()
+                ax4.set_aspect('equal')
+                ax4.grid(True, alpha=0.3)
+        
+        # 覆盖范围分析
+        ax5 = fig.add_subplot(235)
+        if power_lines or towers:
+            all_system_points = []
+            
+            if power_lines:
+                for pl in power_lines:
+                    if 'point_indices' in pl and len(pl['point_indices']) > 0:
+                        all_system_points.extend(points[pl['point_indices']])
+            
+            if towers:
+                for tower in towers:
+                    if 'points' in tower and len(tower['points']) > 0:
+                        all_system_points.extend(tower['points'])
+            
+            if all_system_points:
+                all_system_points = np.array(all_system_points)
+                
+                # 计算覆盖范围
+                x_range = all_system_points[:, 0].max() - all_system_points[:, 0].min()
+                y_range = all_system_points[:, 1].max() - all_system_points[:, 1].min()
+                z_range = all_system_points[:, 2].max() - all_system_points[:, 2].min()
+                
+                coverage_stats = [x_range, y_range, z_range]
+                labels = ['X Range (m)', 'Y Range (m)', 'Z Range (m)']
+                colors = ['red', 'green', 'blue']
+                
+                bars = ax5.bar(labels, coverage_stats, color=colors, alpha=0.7)
+                ax5.set_ylabel('Range (m)')
+                ax5.set_title('System Coverage Analysis')
+                ax5.grid(True, alpha=0.3)
+                
+                # 添加数值标签
+                for bar, val in zip(bars, coverage_stats):
+                    ax5.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
+                            f'{val:.1f}', ha='center', va='bottom')
+        
+        # 系统统计摘要
+        ax6 = fig.add_subplot(236)
+        ax6.axis('off')
+        
+        # 计算系统统计
+        total_line_points = sum(len(pl.get('point_indices', [])) for pl in power_lines) if power_lines else 0
+        total_tower_points = sum(len(t.get('points', [])) for t in towers) if towers else 0
+        total_system_points = total_line_points + total_tower_points
+        
+        total_line_length = sum(pl.get('total_length', 0) for pl in power_lines) if power_lines else 0
+        
+        stats_text = f"""Complete Power Grid System:
+        
+POWER LINES:
+  Count: {len(power_lines) if power_lines else 0}
+  Total Length: {total_line_length:.1f} m
+  Points: {total_line_points:,}
+  
+TOWERS:
+  Count: {len(towers) if towers else 0}
+  Points: {total_tower_points:,}
+  
+SYSTEM TOTALS:
+  Total Points: {total_system_points:,}
+  Coverage: {total_system_points/len(points)*100:.2f}% of input
+  
+EFFICIENCY:
+  Lines/Tower Ratio: {len(power_lines)/max(1, len(towers)):.1f}
+  Points/Structure: {total_system_points/max(1, len(power_lines) + len(towers)):.0f}"""
+        
+        if power_lines and towers:
+            # 分析空间分布效率
+            line_density = len(power_lines) / max(1, x_range * y_range) * 1000000  # 线/km²
+            tower_density = len(towers) / max(1, x_range * y_range) * 1000000     # 塔/km²
+            
+            stats_text += f"""
+            
+SPATIAL DENSITY:
+  Lines: {line_density:.2f} /km²
+  Towers: {tower_density:.2f} /km²
+  Coverage Area: {x_range/1000*y_range/1000:.2f} km²"""
+        
+        ax6.text(0.05, 0.95, stats_text, transform=ax6.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="gold", alpha=0.8))
+        
+        plt.suptitle(title, fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.save_dir, save_name), dpi=150, bbox_inches='tight')
+        plt.show()
+        
+        print(f"  完整系统: {len(power_lines)} 条电力线 + {len(towers)} 个塔")
+        print(f"  系统点数: {total_system_points:,} ({total_system_points/len(points)*100:.2f}%)")
+        if total_line_length > 0:
+            print(f"  电力线总长度: {total_line_length:.1f} m")

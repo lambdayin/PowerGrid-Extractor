@@ -19,17 +19,17 @@ a2d_planar_thr: 0.3        # 平面阈值
 a3d_spherical_thr: 0.1     # 球形阈值
 
 # 电力线提取参数
-collinearity_angle_thr: 10.0   # 共线性角度
-neighbor_mode: "8-connected"    # 8邻域搜索
+collinearity_angle_thr: 10.0    # Collinearity angle threshold in degrees
+neighbor_mode: "8-connected"    # 2D grid neighborhood mode
 
-# 塔架分割参数 (宽松设置)
-moving_window_size: 2           # 2x2移动窗口
-tower_grid_cluster_offset: 1.0  # 极小的聚类高度偏移
-planar_radius_offset: 15.0      # 极大的半径约束偏移
+# Tower segmentation parameters  
+moving_window_size: 2           # 2x2 moving window for refinement
+tower_grid_cluster_offset: 5.0  # H_h + 5 meters for clustering
+planar_radius_offset: 5.0       # r + 5 for radius constraint
 
-# 拓扑优化参数 (极度宽松，几乎不过滤)
-connection_distance_thr: 100.0  # 极大的连接距离
-parallel_angle_thr: 90.0        # 90度 - 几乎不限制
+# Topological optimization parameters
+connection_distance_thr: 10.0   # Max distance for PL-tower connections
+parallel_angle_thr: 15.0        # Angle threshold for parallel consistency
 
 # 输出参数
 enable_visualization: true      # 开启可视化

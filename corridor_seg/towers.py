@@ -50,7 +50,7 @@ class TowerExtractor:
         return candidate_grids
     
     def step2_moving_window_refinement(self, grid_features: Dict, candidate_grids: Set,
-                                     tower_head_height: float) -> Set[Tuple[int, int]]:
+                                     tower_head_height: float, delta_h_min: float) -> Set[Tuple[int, int]]:
         """
         Step 2: 2×2 moving window refinement.
         
@@ -79,7 +79,8 @@ class TowerExtractor:
         
         refined_candidates = set()
         window_size = self.config.moving_window_size
-        threshold = tower_head_height + self.config.tower_grid_cluster_offset
+        # threshold = tower_head_height + self.config.tower_grid_cluster_offset
+        threshold = max(delta_h_min, tower_head_height * 0.5)
         
         # Apply 2×2 moving window
         for i in range(min_i, max_i - window_size + 2):
@@ -106,7 +107,7 @@ class TowerExtractor:
                 if max_height > threshold or height_range > tower_head_height:
                     # Add cells that contribute to height variation
                     for cell_idx in window_cells:
-                        if grid_features[cell_idx].get('HeightDiff', 0) > tower_head_height:
+                        if grid_features[cell_idx].get('HeightDiff', 0) > threshold:
                             refined_candidates.add(cell_idx)
         
         # Keep intersection with initial candidates
@@ -436,7 +437,7 @@ class TowerExtractor:
         
         # Step 2: Moving window refinement
         candidates_step2 = self.step2_moving_window_refinement(
-            grid_features, candidates_step1, tower_head_height)
+            grid_features, candidates_step1, tower_head_height, delta_h_min)
         
         if not candidates_step2:
             self.logger.warning("No candidates after step 2")

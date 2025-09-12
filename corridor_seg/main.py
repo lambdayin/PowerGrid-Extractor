@@ -212,6 +212,20 @@ class CorridorSegmenter:
         stage5_time = time.time() - stage5_start
         self.logger.info(f"Stage 5 completed in {stage5_time:.2f}s")
         
+        # Debug: Save tower points after Stage 5 and before Stage 6
+        try:
+            step5_tower_points = filtered_points[tower_mask]
+            debug_dir = Path('output')
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            debug_tower_path = debug_dir / 'towers_step5.las'
+            if len(step5_tower_points) > 0:
+                self.save_point_cloud(step5_tower_points, str(debug_tower_path))
+                self.logger.info(f"Saved Stage 5 tower points to: {debug_tower_path}")
+            else:
+                self.logger.warning("No tower points detected at Stage 5 to save")
+        except Exception as e:
+            self.logger.error(f"Failed to save Stage 5 tower points: {e}")
+        
         # Stage 6: Topological Optimization
         self.logger.info("=== Stage 6: Topological Optimization ===")
         stage6_start = time.time()
