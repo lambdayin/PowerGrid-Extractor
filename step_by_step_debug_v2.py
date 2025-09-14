@@ -38,7 +38,9 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     stats = {}
     
     # 1. 加载小样本数据
-    input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud4db26d1a9662f7ae_Block_0.las"
+    # input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud4db26d1a9662f7ae_Block_0.las"
+    input_file = "/Users/lambdayin/Code-Projects/maicro_projects/data/cloud4db26d1a9662f7ae_Block_0.las"
+
     las = laspy.read(input_file)
     sample_points = np.vstack([las.x, las.y, las.z]).T
     
@@ -289,7 +291,7 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
         
     #     if line_heights:
     #         # 塔头高度估算为电力线高度的95%分位数
-    #         tower_head_height = np.percentile(line_heights, 95)
+    #         tower_head_height = np.percentile(line_heights, 95) # 49.71m
     #         print(f"  基于电力线高度估算塔头高度: {tower_head_height:.2f}m")
     #     else:
     #         tower_head_height = 15.0  # 默认值
@@ -297,6 +299,7 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     # else:
     #     tower_head_height = 15.0
     #     print("  使用默认塔头高度: 15.0m")
+    print(f"  基于电力线高度估算塔头高度: {tower_head_height:.2f}m") # 44.13m
 
     # 需要先计算网格特征（包含HeightDiff）
     print("\\n=== Step 5.0: 计算网格特征（用于塔检测）===")

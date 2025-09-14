@@ -37,7 +37,8 @@ class TowerExtractor:
         self.logger.info("Step 1: Initial height difference screening")
         
         candidate_grids = set()
-        threshold = max(delta_h_min, tower_head_height * 0.5)
+        # threshold = max(delta_h_min, tower_head_height * 0.5)
+        threshold = delta_h_min
         
         for grid_idx, features in grid_features.items():
             height_diff = features.get('HeightDiff', 0)
@@ -80,7 +81,7 @@ class TowerExtractor:
         refined_candidates = set()
         window_size = self.config.moving_window_size
         # threshold = tower_head_height + self.config.tower_grid_cluster_offset
-        threshold = max(delta_h_min, tower_head_height * 0.5)
+        threshold = delta_h_min + self.config.tower_grid_cluster_offset
         
         # Apply 2×2 moving window
         for i in range(min_i, max_i - window_size + 2):
@@ -104,10 +105,12 @@ class TowerExtractor:
                 max_height = max(window_heights)
                 height_range = max(window_heights) - min(window_heights)
                 
-                if max_height > threshold or height_range > tower_head_height:
+                if height_range > threshold:
+                # if max_height > threshold or height_range > tower_head_height:
                     # Add cells that contribute to height variation
                     for cell_idx in window_cells:
                         if grid_features[cell_idx].get('HeightDiff', 0) > threshold:
+                        # if grid_features[cell_idx].get('HeightDiff', 0) > tower_head_height:
                             refined_candidates.add(cell_idx)
         
         # Keep intersection with initial candidates
@@ -172,7 +175,7 @@ class TowerExtractor:
             heights = grid_points[:, 2]
             
             # Check vertical continuity
-            if self._check_vertical_continuity(heights, max_height_gap):
+            if self._check_vertical_continuity(heights, 0.5 * tower_head_height):
                 # Check if maximum height exceeds threshold
                 if heights.max() > max_height_gap:
                     valid_candidates.add(grid_idx)
@@ -193,6 +196,46 @@ class TowerExtractor:
         max_diff = np.max(height_diffs)
         
         return max_diff < max_gap
+
+    # def _check_vertical_continuity(self, heights: np.ndarray, max_gap: float) -> bool:
+    #     if len(heights) < 3:
+    #         return False
+        
+    #     height_range = heights.max() - heights.min()
+
+    #     if height_range < 5.0: # 高度范围至少为5m
+    #         return False
+        
+    #     n_layers = max(3, int(height_range / 3.0)) # 每层约3米
+    #     min_height = np.min(heights)
+    #     layer_thickness = height_range / n_layers
+
+    #     # 检查每层的点分布
+    #     gaps = []
+    #     for layer in range(n_layers):
+    #         layer_min = min_height + layer * layer_thickness
+    #         layer_max = min_height + (layer + 1) * layer_thickness
+            
+    #         layer_mask = (heights >= layer_min) & (heights < layer_max)
+    #         layer_points = np.sum(layer_mask)
+            
+    #         if layer_points == 0:
+    #             gaps.append(layer_thickness)
+    #         else:
+    #             if gaps:  # 结束一个间隙序列
+    #                 total_gap = sum(gaps)
+    #                 if total_gap > self.vertical_gap_max:
+    #                     return False
+    #                 gaps = []
+        
+    #     # 检查最后的间隙
+    #     if gaps:
+    #         total_gap = sum(gaps)
+    #         if total_gap > self.vertical_gap_max:
+    #             return False
+        
+    #     return True
+
     
     def step4_clustering_to_towers(self, valid_candidates: Set, grid_features: Dict) -> List[Dict]:
         """

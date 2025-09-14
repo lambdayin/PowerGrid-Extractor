@@ -788,7 +788,8 @@ Length Range:
         # 所有网格的高度差分布
         ax1 = fig.add_subplot(221)
         all_height_diffs = [features.get('HeightDiff', 0) for features in grid_features.values()]
-        threshold = max(delta_h_min, tower_head_height * 0.5)
+        # threshold = max(delta_h_min, tower_head_height * 0.5)
+        threshold = delta_h_min
         
         ax1.hist(all_height_diffs, bins=50, alpha=0.7, color='lightblue', label='All grids')
         ax1.axvline(x=threshold, color='red', linestyle='--', linewidth=2, 

@@ -82,6 +82,7 @@ dmypy.json
 # Log files
 *.log
 
+.DS_Store
 # Project-specific output directories
 /output/
 /output_debug/
@@ -93,6 +94,7 @@ dmypy.json
 /my_debug_results/
 /debug_visualizations/
 /detection_results_origin/
+/debug_visualizations*/
 
 # Temporary data files
 /temp_sample.las
