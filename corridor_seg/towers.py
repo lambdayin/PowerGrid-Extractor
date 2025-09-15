@@ -198,7 +198,7 @@ class TowerExtractor:
         return max_diff < max_gap
 
     # def _check_vertical_continuity(self, heights: np.ndarray, max_gap: float) -> bool:
-    #     if len(heights) < 3:
+    #     if len(heights) < 10:
     #         return False
         
     #     height_range = heights.max() - heights.min()
@@ -224,14 +224,14 @@ class TowerExtractor:
     #         else:
     #             if gaps:  # 结束一个间隙序列
     #                 total_gap = sum(gaps)
-    #                 if total_gap > self.vertical_gap_max:
+    #                 if total_gap > max_gap:
     #                     return False
     #                 gaps = []
         
     #     # 检查最后的间隙
     #     if gaps:
     #         total_gap = sum(gaps)
-    #         if total_gap > self.vertical_gap_max:
+    #         if total_gap > max_gap:
     #             return False
         
     #     return True

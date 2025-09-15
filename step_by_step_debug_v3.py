@@ -40,6 +40,7 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     # 1. 加载小样本数据
     input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud4db26d1a9662f7ae_Block_0.las"
     # input_file = "/Users/lambdayin/Code-Projects/maicro_projects/data/cloud4db26d1a9662f7ae_Block_0.las"
+
     las = laspy.read(input_file)
     sample_points = np.vstack([las.x, las.y, las.z]).T
     
@@ -85,6 +86,7 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     grid_2d = preprocessed['grid_2d']
     voxel_hash_3d = preprocessed['voxel_hash_3d']
     delta_h_min = preprocessed['delta_h_min']
+    tower_head_height = preprocessed['tower_head_height']
     # 原点（与预处理一致）
     bounds = preprocessed.get('bounds', {})
     min_coords = bounds.get('min_coords', None)
@@ -254,6 +256,10 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     # 过滤
     filtered_lines = powerline_extractor.filter_power_lines(power_lines, min_length=10.0, min_segments=1)
     print(f"✅ 过滤后电力线: {len(filtered_lines)}")
+
+    pl_mask = np.zeros(len(filtered_points), dtype=bool)
+    for pl in power_lines:
+        pl_mask[pl['point_indices']] = True
     
     # 收集统计信息
     stats['final_powerlines'] = len(filtered_lines)
@@ -276,46 +282,53 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     tower_extractor = TowerExtractor(config)
     
     # 估算塔头高度（基于电力线高度）
-    if filtered_lines:
-        line_heights = []
-        for pl in filtered_lines:
-            if 'point_indices' in pl and len(pl['point_indices']) > 0:
-                pl_points = filtered_points[pl['point_indices']]
-                line_heights.extend(pl_points[:, 2])
+    # if filtered_lines:
+    #     line_heights = []
+    #     for pl in filtered_lines:
+    #         if 'point_indices' in pl and len(pl['point_indices']) > 0:
+    #             pl_points = filtered_points[pl['point_indices']]
+    #             line_heights.extend(pl_points[:, 2])
         
-        if line_heights:
-            # 塔头高度估算为电力线高度的95%分位数
-            tower_head_height = np.percentile(line_heights, 95)
-            print(f"  基于电力线高度估算塔头高度: {tower_head_height:.2f}m")
-        else:
-            tower_head_height = 15.0  # 默认值
-            print("  使用默认塔头高度: 15.0m")
-    else:
-        tower_head_height = 15.0
-        print("  使用默认塔头高度: 15.0m")
-    
+    #     if line_heights:
+    #         # 塔头高度估算为电力线高度的95%分位数
+    #         tower_head_height = np.percentile(line_heights, 95) # 49.71m
+    #         print(f"  基于电力线高度估算塔头高度: {tower_head_height:.2f}m")
+    #     else:
+    #         tower_head_height = 15.0  # 默认值
+    #         print("  使用默认塔头高度: 15.0m")
+    # else:
+    #     tower_head_height = 15.0
+    #     print("  使用默认塔头高度: 15.0m")
+    print(f"  基于电力线高度估算塔头高度: {tower_head_height:.2f}m") # 44.13m
+
     # 需要先计算网格特征（包含HeightDiff）
     print("\\n=== Step 5.0: 计算网格特征（用于塔检测）===")
-    grid_features = {}
     
-    for grid_idx, point_indices in grid_2d.items():
-        if not point_indices:
-            continue
+    # grid_features = {}
+    
+    # for grid_idx, point_indices in grid_2d.items():
+    #     if not point_indices:
+    #         continue
             
-        grid_points = filtered_points[point_indices]
-        heights = grid_points[:, 2]
+    #     grid_points = filtered_points[point_indices]
+    #     heights = grid_points[:, 2]
         
-        # 计算网格特征
-        features = {
-            'point_count': len(point_indices),
-            'centroid': grid_points.mean(axis=0),
-            'HeightDiff': heights.max() - heights.min(),
-            'max_height': heights.max(),
-            'min_height': heights.min(),
-            'density': len(point_indices) / (config.grid_2d_size ** 2)
-        }
-        grid_features[grid_idx] = features
-    
+    #     # 计算网格特征
+    #     features = {
+    #         'point_count': len(point_indices),
+    #         'centroid': grid_points.mean(axis=0),
+    #         'HeightDiff': heights.max() - heights.min(),
+    #         'max_height': heights.max(),
+    #         'min_height': heights.min(),
+    #         'density': len(point_indices) / (config.grid_2d_size ** 2)
+    #     }
+    #     grid_features[grid_idx] = features
+
+    grid_features = feature_calc.compute_2d_grid_features(
+            grid_2d, filtered_points, pl_candidate_mask=pl_mask)
+    grid_features = feature_calc.compute_height_based_features(
+            grid_features, delta_h_min, tower_head_height)
+
     print(f"✅ 计算网格特征: {len(grid_features)} 个网格")
     stats['grid_features'] = len(grid_features)
     
@@ -477,25 +490,6 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     
     return stats
 
-def run_debug_with_config(enable_vis=True, save_dir="debug_visualizations", 
-                         voxel_size=0.5, a1d_threshold=0.3, min_height_gap=1.0):
-    """运行调试，允许自定义参数
-    
-    Args:
-        enable_vis: 是否启用可视化
-        save_dir: 可视化保存目录
-        voxel_size: 体素大小
-        a1d_threshold: 线性度阈值
-        min_height_gap: 最小高度间隙
-    """
-    print(f"\\n🔧 自定义参数调试模式")
-    print(f"   体素大小: {voxel_size}m")
-    print(f"   线性度阈值: {a1d_threshold}")
-    print(f"   最小高度间隙: {min_height_gap}m")
-    
-    # 这里可以添加自定义配置的逻辑
-    return step_by_step_debug(enable_vis, save_dir)
-
 if __name__ == "__main__":
     np.random.seed(42)
     
@@ -503,25 +497,13 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='PowerGrid算法逐步调试工具')
     parser.add_argument('--no-vis', action='store_true', help='禁用可视化')
-    parser.add_argument('--save-dir', default='debug_visualizations_v1', help='可视化保存目录')
-    parser.add_argument('--quick', action='store_true', help='快速模式（自定义参数）')
+    parser.add_argument('--save-dir', default='debug_visualizations_v3', help='可视化保存目录')
     
     args = parser.parse_args()
     
     enable_visualization = not args.no_vis
     
-    if args.quick:
-        # 快速调试模式，使用更宽松的参数
-        stats = run_debug_with_config(
-            enable_vis=enable_visualization,
-            save_dir=args.save_dir,
-            voxel_size=1.0,  # 更大的体素
-            a1d_threshold=0.2,  # 更低的阈值
-            min_height_gap=0.5  # 更低的高度要求
-        )
-    else:
-        # 标准调试模式
-        stats = step_by_step_debug(enable_visualization, args.save_dir)
+    stats = step_by_step_debug(enable_visualization, args.save_dir)
     
     print("\\n" + "="*50)
     print("📋 调试会话统计:")

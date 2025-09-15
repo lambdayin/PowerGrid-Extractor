@@ -38,8 +38,8 @@ def step_by_step_debug(enable_visualization=True, save_dir="debug_visualizations
     stats = {}
     
     # 1. 加载小样本数据
-    # input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud4db26d1a9662f7ae_Block_0.las"
-    input_file = "/Users/lambdayin/Code-Projects/maicro_projects/data/cloud4db26d1a9662f7ae_Block_0.las"
+    input_file = "/home/lambdayin/Code-Projects/maicro-projects/detection/3d/Spatil-Line-Clustering/data/cloud4db26d1a9662f7ae_Block_0.las"
+    # input_file = "/Users/lambdayin/Code-Projects/maicro_projects/data/cloud4db26d1a9662f7ae_Block_0.las"
 
     las = laspy.read(input_file)
     sample_points = np.vstack([las.x, las.y, las.z]).T
@@ -497,7 +497,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='PowerGrid算法逐步调试工具')
     parser.add_argument('--no-vis', action='store_true', help='禁用可视化')
-    parser.add_argument('--save-dir', default='debug_visualizations', help='可视化保存目录')
+    parser.add_argument('--save-dir', default='debug_visualizations_v2', help='可视化保存目录')
     
     args = parser.parse_args()
     
